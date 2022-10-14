@@ -38,13 +38,13 @@ program optimwidths
     call pfunc%mf_init(nrAtoms, cartDOF, normDOF, W, M, U, &
                        atomTypes_a)
     allocate(x0(ntype))
+    call nm%nm_init(ntype,x0,pfunc,maxiter=maxiter)
     do i=1,ntype
       write(*, *) "Input initial width of atom ", i
       read(*, *) x0(i)
     enddo
     write(*,*) "The initial guess is:"
     write(*,'(3f8.3)') x0
-    call nm%nm_init(ntype,x0,pfunc,maxiter=maxiter)
     call nm%driveOptimisation()
 
     deallocate(W, M, A, U, widths)

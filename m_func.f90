@@ -76,8 +76,9 @@ module m_func
                  mat3(self%nDOF,self%nDOF),A(self%cDOF,self%cDOF))
         
         A = 0.d0
-        do i=1,self%cDOF 
-          A(i,i) = x(self%atomTypes(i/3+1)) 
+        !write(*,*) self%atomTypes
+        do i=0,self%cDOF-1 
+          A(i,i) = x(self%atomTypes(i/3 + 1)) 
         enddo
         
         mat1 = matmul(transpose(self%U),matmul(A,self%U)) 
