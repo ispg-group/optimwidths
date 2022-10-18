@@ -1,0 +1,8 @@
+&optimparams
+    nrAtoms = 13
+    xtol     = 1.d-7
+    ftol    = 1.d-7
+    maxiter = 1000
+    prog    = 'gaussian'
+    fName   = 'freq.out'
+/
