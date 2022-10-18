@@ -206,7 +206,6 @@ module m_optimizers
       do i=1,(self%nDOF+1)
         ptr%funcValue = fSimplex(i) 
         ptr%vertex = simplex(:,i)
-        !write(*,*) ptr%funcValue
         if (not(associated(head))) then
           allocate(head)
           allocate(head%vertex(self%nDOF))
@@ -215,8 +214,8 @@ module m_optimizers
           tail%funcValue = ptr%funcValue
           tail%vertex = ptr%vertex
         else
+          !write(*,*) i, ptr%funcValue
           if (ptr%funcValue < head%funcValue) then  
-            !write(*,*) "test 1"
             ! add to front
             allocate(nptr)
             allocate(nptr%vertex(self%nDOF))
@@ -225,7 +224,6 @@ module m_optimizers
             nptr%next => head
             head => nptr
           elseif (ptr%funcValue >= tail%funcValue) then
-            !write(*,*) "test 2"
             ! add to back
             allocate(tail%next)
             allocate(tail%next%vertex(self%nDOF))
@@ -260,6 +258,9 @@ module m_optimizers
         endif
       enddo
 
+      deallocate(ptr%vertex)
+      deallocate(ptr)
+
       ptr => head
       i = 1
       do
@@ -273,17 +274,20 @@ module m_optimizers
 
       current => head
       next => current%next 
+      i = 1
       do 
+        deallocate(current)
         nullify(current)
-        !write(*,*) 'debug'
-        !deallocate(current)
         if(not(associated(next))) exit
         current => next
         next => current%next
+        i = i + 1
       enddo
 
-      deallocate(head)
-      deallocate(tail)
+      nullify(head)
+      nullify(tail)
+      !deallocate(head)
+      !deallocate(tail)
       
        
     end subroutine

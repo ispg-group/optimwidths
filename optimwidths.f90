@@ -38,16 +38,17 @@ program optimwidths
     call pfunc%mf_init(nrAtoms, cartDOF, normDOF, W, M, U, &
                        atomTypes_a)
     allocate(x0(ntype))
-    call nm%nm_init(ntype,x0,pfunc,maxiter=maxiter)
     do i=1,ntype
       write(*, *) "Input initial width of atom ", i
       read(*, *) x0(i)
     enddo
     write(*,*) "The initial guess is:"
     write(*,'(3f8.3)') x0
+    call nm%nm_init(ntype,x0,pfunc,maxiter=maxiter)
     call nm%driveOptimisation()
 
-    deallocate(W, M, A, U, widths)
+    deallocate(W, M, A, U, widths, masses, atomTypes_a, &
+&              pfunc, x0)
 end program optimwidths
 
 subroutine readInput(nrAtoms, maxiter, xtol, ftol, &
@@ -244,11 +245,12 @@ subroutine convert2nm(nrAtoms, cDOF, nDOF, U, M, masses)
     integer :: i, j, iAtom
 
     do i = 1,cDOF 
+      iAtom = (i-1)/3 + 1
       do j = 1,nDOF
-        iAtom = (i-1)/3 + 1
         U(i,j) = (U(i,j)*dsqrt(masses(iAtom))/dsqrt(M(j,j)))
       enddo
     enddo
+
 end subroutine convert2nm
 
 subroutine fillAtomTypes(nrAtoms, ind,  atomTypes_a, atomNames) 
@@ -259,7 +261,8 @@ subroutine fillAtomTypes(nrAtoms, ind,  atomTypes_a, atomNames)
     character(len=128), intent(in) :: atomNames(nrAtoms)
     integer, intent(inout) :: atomTypes_a(nrAtoms)
     type(mf_llist), pointer :: head => NULL(), tail => NULL(), &
-                                ptr => NULL(), ptr1 => NULL() 
+                               ptr => NULL(), ptr1 => NULL(),  &
+                               next => NULL(), current => NULL() 
     integer :: i
     logical :: inllist
 
@@ -268,7 +271,6 @@ subroutine fillAtomTypes(nrAtoms, ind,  atomTypes_a, atomNames)
     do i=1,nrAtoms
       inllist = .false.
       ptr%atomName = atomNames(i)
-      !write(*,*) ptr%atomName
       ptr%atomIndex = ind
       if (not(associated(head))) then
         allocate(head)
@@ -297,6 +299,7 @@ subroutine fillAtomTypes(nrAtoms, ind,  atomTypes_a, atomNames)
         endif
       endif
     enddo
+    deallocate(ptr)
     
     ind = ind - 1
     write(*,*) "There are ", ind, " distinct atom types:"
@@ -319,56 +322,17 @@ subroutine fillAtomTypes(nrAtoms, ind,  atomTypes_a, atomNames)
       enddo
     enddo
 
-    deallocate(head, tail, ptr1)
+    current => head
+    next => current%mf_next
+    do 
+      deallocate(current)
+      nullify(current)
+      if(not(associated(next))) exit
+      current => next
+      next => current%mf_next
+    enddo
+
+    nullify(head)
+    nullify(tail)
+
 end subroutine fillAtomTypes
-
-!subroutine calculateDeterminant(ndim, B, d)
-!    integer, intent(in) :: ndim
-!    real(kind=8), intent(in) :: B(ndim, ndim)
-!    real(kind=8), intent(inout) :: d
-!    integer :: pivot(ndim)
-!    integer :: info, i
-!    
-!    !allocate(pivot(ndim))
-!    write(*,*) ndim
-!    call dgetrf(ndim,ndim,B,ndim,pivot,info)
-!    if (info == 0) then
-!      d = 1.d0
-!      do i=1,ndim
-!        ! since this a PLU decomposition, we need
-!        ! take care if the row permutations via
-!        ! the pivot array
-!        if (pivot(i) == i) d = d * B(i,i)
-!        if (pivot(i) /= i) d = d * B(i,i) * (-1.d0)
-!      enddo
-!    endif
-!end subroutine calculateDeterminant
-
-!real(kind=8) function S(nrAtoms, cDOF, nDOF, W, M, U, A)
-!    integer, intent(in) :: nrAtoms, cDOF, nDOF 
-!    real(kind=8), intent(in) :: W(nDOF,nDOF), M(nDOF,nDOF), &
-!                                U(cDOF,nDOF), A(cDOF,cDOF)
-!    real(kind=8), allocatable   :: mat1(:,:), mat2(:,:),    &
-!                                   mat3(:,:)
-!    real(kind=8) :: lnDet1, lnDet2, lnDet3, c1, c2, c3
-!    
-!    allocate(mat1(nDOF,nDOF),mat2(nDOF,nDOF),mat3(nDOF,nDOF))
-!    
-!    mat1 = matmul(transpose(U),matmul(A,U)) 
-!    mat2 = matmul(W,M)
-!    mat3 = mat2/2.d0 + mat1
-!
-!    call calculateDeterminant(nDOF,2.d0*mat1,lnDet1)
-!    call calculateDeterminant(nDOF,mat2,lnDet2)
-!    call calculateDeterminant(nDOF,mat3,lnDet3)
-!
-!    c1 = (-1.d0)/(4.d0)
-!    c2 = c1
-!    c3 = (1.d0)/(2.d0)
-!    
-!    lnDet1 = c1*dlog(lnDet1)
-!    lnDet2 = c2*dlog(lnDet2)
-!    lnDet3 = c3*dlog(lnDet3)
-!
-!    S = lnDet1 + lnDet2 + lnDet3
-!end function S

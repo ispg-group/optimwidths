@@ -79,7 +79,9 @@ module m_func
         !write(*,*) self%atomTypes
         do i=0,self%cDOF-1 
           A(i,i) = x(self%atomTypes(i/3 + 1)) 
+        !  write(*,*) A(i,i)
         enddo
+        !write(*,*) 'test'
         
         mat1 = matmul(transpose(self%U),matmul(A,self%U)) 
         mat2 = matmul(self%W,self%M)
