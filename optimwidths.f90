@@ -6,7 +6,7 @@ program optimwidths
     ! input variables 
     integer            :: nrAtoms, maxiter
     real(kind=8)       :: xtol, ftol
-    character(len=128) :: prog, fileName 
+    character(len=128) :: prog, fileName, detType
     ! end input variables
 
     integer :: cartDOF, normDOF, info, ntype, i
@@ -16,35 +16,52 @@ program optimwidths
                                  x0(:) 
     integer, allocatable :: pivot(:), atomTypes_a(:)
     real(kind=8) :: d
+    logical :: constrained
     class(myfunc), pointer :: pfunc
     type(nedler_mead) :: nm
 
-    call readInput(nrAtoms, maxiter, xtol, ftol, prog,&
-                   fileName)
+    call readInput(nrAtoms, maxiter, xtol, ftol, constrained, &
+                   prog, fileName, detType)
     cartDOF = 3 * nrAtoms
     normDOF = cartDOF - 6
     allocate(W(normDOF,normDOF), M(normDOF,normDOF), &
              A(cartDOF,cartDOF), U(cartDOF,normDOF), &
              widths(nrAtoms),masses(nrAtoms),        &
              atomTypes_a(nrAtoms))
+
     allocate(pfunc)
 
     ntype=0
     atomTypes_a = 0
     call readFreqOut(nrAtoms, cartDOF, normDOF, W, M, U, &
                      masses, prog, fileName, atomTypes_a,&
-                     ntype)
+                     ntype, constrained)
     call convert2nm(nrAtoms, cartDOF, normDOF, U, M, masses)
     call pfunc%mf_init(nrAtoms, cartDOF, normDOF, W, M, U, &
-                       atomTypes_a)
-    allocate(x0(ntype))
-    do i=1,ntype
-      write(*, *) "Input initial width of atom ", i
-      read(*, *) x0(i)
-    enddo
+                       atomTypes_a, constrained, detType)
+    if (constrained) then 
+      allocate(x0(ntype))
+      do i=1,ntype
+        write(*, *) "Input initial width of atom ", i
+        read(*, *) x0(i)
+      enddo
+    else
+      allocate(x0(nrAtoms))
+      do i=1,nrAtoms
+        write(*, *) "Input initial width of atom ", atomTypes_a(i)
+        read(*, *) x0(i) 
+      enddo
+    endif
+
     write(*,*) "The initial guess is:"
     write(*,'(3f8.3)') x0
-    call nm%nm_init(ntype,x0,pfunc,maxiter=maxiter)
+
+    if (constrained) then 
+      call nm%nm_init(ntype,x0,pfunc,maxiter=maxiter)
+    else
+      call nm%nm_init(nrAtoms,x0,pfunc,maxiter=maxiter)
+    endif
+        
     call nm%driveOptimisation()
 
     deallocate(W, M, A, U, widths, masses, atomTypes_a, &
@@ -52,12 +69,15 @@ program optimwidths
 end program optimwidths
 
 subroutine readInput(nrAtoms, maxiter, xtol, ftol, &
-                     prog, fName)
+                     constrained, prog, fName, detType)
     integer, intent(inout)            :: maxiter, nrAtoms
     real(kind=8), intent(inout)       :: xtol, ftol
-    character(len=128), intent(inout) :: prog, fName
+    logical, intent(inout)            :: constrained
+    character(len=128), intent(inout) :: prog, fName,&
+                                         detType
     namelist / optimparams / nrAtoms, maxiter, xtol, &
-                             ftol, prog, fName
+                             ftol, constrained, prog,&
+                             fName, detType
     
     open(10, file='input.in')
     read(unit=10, nml=optimparams)
@@ -74,7 +94,7 @@ subroutine readFreqOut(nrAtoms, cDOF, nDOF, W, M, U, masses, &
     integer, intent(inout)          :: ntype 
     real(kind=8), intent(inout)     :: W(nDOF,nDOF), M(nDOF,nDOF), &
                                        U(cDOF,nDOF), masses(nrAtoms), &
-                                       atomTypes_a
+                                       atomTypes_a(nrAtoms)
     character(len=128), intent(in)  :: prog, fName
     character(len=256)              :: line
     real(kind=8), allocatable       :: atomCoords(:,:)
@@ -141,7 +161,8 @@ subroutine readFreqOut(nrAtoms, cDOF, nDOF, W, M, U, masses, &
             if (lineNr > (nrAtoms + 1)) then
                 lineNr     = 0
                 rAtomNames = .false. 
-                call fillAtomTypes(nrAtoms,ntype,atomTypes_a,atomNames)
+                call fillAtomTypes(nrAtoms,ntype,atomTypes_a,&
+                                   atomNames)
             endif 
           elseif (rAtomNames .and. (lineNr == 1)) then
             lineNr = lineNr + 1
@@ -157,11 +178,13 @@ subroutine readFreqOut(nrAtoms, cDOF, nDOF, W, M, U, masses, &
             if (ismass < nMass) then
             do i=1,10
               masses(imass) = tempRLine(i)*proton
+              !write(*,*) masses(imass)
               imass = imass + 1
             enddo
             elseif (ismass == nMass) then
             do i=1,nrMasses(ismass)
               masses(imass) = tempRLine(i)*proton
+              !write(*,*) masses(imass)
               imass = imass + 1
             enddo
             endif

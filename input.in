@@ -3,6 +3,8 @@
     xtol     = 1.d-7
     ftol    = 1.d-7
     maxiter = 1000
+    constrained = .true.
     prog    = 'gaussian'
     fName   = 'freq.out'
+    detType = 'todd'
 /
