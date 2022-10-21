@@ -1,11 +1,6 @@
 module m_func
     implicit none
 
-    type mf_llist 
-      character(len=2) :: atomName
-      integer :: atomIndex
-      type(mf_llist), pointer :: mf_next 
-    end type mf_llist
 
     type myfunc 
       integer :: nrAtoms, cDOF, nDOF 
