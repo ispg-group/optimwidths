@@ -6,7 +6,7 @@ program optimwidths
     ! input variables 
     integer            :: nrAtoms, maxiter
     real(kind=8)       :: xtol, ftol
-    character(len=128) :: prog, fileName, detType
+    character(len=128) :: prog, fileName
     ! end input variables
 
     integer :: cartDOF, normDOF, info, ntype, i
@@ -21,7 +21,7 @@ program optimwidths
     type(nedler_mead) :: nm
 
     call readInput(nrAtoms, maxiter, xtol, ftol, constrained, &
-                   prog, fileName, detType)
+                   prog, fileName)
     cartDOF = 3 * nrAtoms
     normDOF = cartDOF - 6
     allocate(W(normDOF,normDOF), M(normDOF,normDOF), &
@@ -38,7 +38,7 @@ program optimwidths
                      ntype, constrained)
     call convert2nm(nrAtoms, cartDOF, normDOF, U, M, masses)
     call pfunc%mf_init(nrAtoms, cartDOF, normDOF, W, M, U, &
-                       atomTypes_a, constrained, detType)
+                       atomTypes_a, constrained)
     if (constrained) then 
       allocate(x0(ntype))
       do i=1,ntype
@@ -69,15 +69,14 @@ program optimwidths
 end program optimwidths
 
 subroutine readInput(nrAtoms, maxiter, xtol, ftol, &
-                     constrained, prog, fName, detType)
+                     constrained, prog, fName)
     integer, intent(inout)            :: maxiter, nrAtoms
     real(kind=8), intent(inout)       :: xtol, ftol
     logical, intent(inout)            :: constrained
-    character(len=128), intent(inout) :: prog, fName,&
-                                         detType
+    character(len=128), intent(inout) :: prog, fName
     namelist / optimparams / nrAtoms, maxiter, xtol, &
                              ftol, constrained, prog,&
-                             fName, detType
+                             fName
     
     open(10, file='input.in')
     read(unit=10, nml=optimparams)

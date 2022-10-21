@@ -6,5 +6,4 @@
     constrained = .true.
     prog    = 'gaussian'
     fName   = 'freq.out'
-    detType = 'todd'
 /
