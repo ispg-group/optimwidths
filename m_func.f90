@@ -59,7 +59,6 @@ module m_func
         else
           write(*,*) 'PLU failed'
         endif
-        !write(*,*) 'end calc_det'
     end subroutine calc_det
 
     real(kind=8) function calc(self, ndim, x)
@@ -82,7 +81,6 @@ module m_func
             A(i+1,i+1) = x(self%atomTypes(i/3 + 1)) 
           enddo
         else
-          !write(*,*) x
           do i=0,self%nrAtoms-1 
             do j=1,3 
                 k = 3 * i + j

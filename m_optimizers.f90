@@ -7,7 +7,6 @@ module m_optimizers
       ! standard parameters of method 
       real(kind=8) :: alpha, beta, gama, delta
       ! objective function to be optimized
-      !procedure(func), pointer, nopass :: pfunc => NULL()
       class(myfunc), pointer :: ufunc 
       ! number of degrees of freedom
       integer :: nDOF 
@@ -23,12 +22,17 @@ module m_optimizers
       !   relative change in function  
       real(kind=8) :: ftol
     contains
-      procedure, public  :: nm_init 
-      procedure, public  :: driveOptimisation
-      procedure, private :: simplexFunc
-      procedure, public :: initSimplex
-      !procedure, private :: printSimplexFunc
+      ! init method
+      procedure, public  :: nm_init             
+      ! driver 
+      procedure, public  :: driveOptimisation   
+      ! method to calculate function value for each vertex  
+      procedure, private :: simplexFunc         
+      ! method to initialise the simplex  
+      procedure, private :: initSimplex
+      ! method to sort the simplex vertices by function value 
       procedure, private :: orderSimplex
+      ! method to perform one iteration of the nm optimisation  
       procedure, private :: propagateSimplex
     end type nedler_mead
 
@@ -112,7 +116,7 @@ module m_optimizers
       else
         self%ftol = 1.d-7
       endif
-      ! end set convergence tols
+      ! end set convergence tolerances
 
       self%ufunc => ufunc 
     end subroutine nm_init
@@ -120,7 +124,8 @@ module m_optimizers
 
     subroutine simplexFunc(self, simplex, fSimplex)
     ! 
-    !  Calculates function values to all vertices 
+    !  Calculates function values to all vertices; 
+    !  callable only from driver
     ! 
       implicit none
       class(nedler_mead) :: self
@@ -129,21 +134,11 @@ module m_optimizers
       real(kind=8), dimension(:), intent(inout)  :: fSimplex
       integer :: i
       
-      !allocate(mfunc)
-      !mfunc => self%ufunc
       do i=1,(self%nDOF+1)
-!        fSimplex(i) = self%pfunc(self%nDOF,simplex(:,i)) 
-        !write(*,*) simplex(:,i), self%nDOF
         fSimplex(i) = self%ufunc%calc(self%nDOF,simplex(:,i)) 
-        !fSimplex(i) = mfunc%calc(self%nDOF,simplex(:,i)) 
       enddo
-      !deallocate(mfunc)
 
     end subroutine simplexFunc
-    
-    !subroutine printSimplexFunc(self, simplex, fSimplex) 
-    !  implicit none
-    !end subroutine
 
     subroutine initSimplex(self, simplex, fSimplex)
     !
@@ -173,20 +168,20 @@ module m_optimizers
 
       cpSimplex = simplex 
       call self%simplexFunc(cpSimplex, fSimplex)
-      !write(*,*) fSimplex
- 
           
       deallocate(perturb, cpSimplex, cpFSimplex)
     end subroutine initSimplex
 
     subroutine orderSimplex(self, simplex, fSimplex) 
+      ! 
+      ! Uses a linked list for insertion sort of vertices
+      ! accoring to function value from lowest to highest 
+      ! 
       implicit none
 
       class(nedler_mead) :: self
       real(kind=8), dimension(:,:), intent(inout) :: simplex
       real(kind=8), dimension(:), intent(inout) :: fSimplex
-      ! use a linked list for insertion sort, according
-      ! to funcValue from lowest to highest 
       type :: llist 
         real(kind=8) :: funcValue
         real(kind=8), allocatable :: vertex(:)
@@ -214,7 +209,6 @@ module m_optimizers
           tail%funcValue = ptr%funcValue
           tail%vertex = ptr%vertex
         else
-          !write(*,*) i, ptr%funcValue
           if (ptr%funcValue < head%funcValue) then  
             ! add to front
             allocate(nptr)
@@ -234,14 +228,9 @@ module m_optimizers
           else
             ptr1 => head
             ptr2 => ptr1%next
-            !write(*,*) "test 3"
-            !write(*,*) head%funcValue, tail%funcValue
             do
-              !write(*,*) ptr%funcValue, ptr1%funcValue,  ptr2%funcValue
               if ((ptr%funcValue >= ptr1%funcValue) .and. &
                   (ptr%funcValue < ptr2%funcValue)) then
-                !write(*,*) "converged"
-                !write(*,*) ptr%funcValue, ptr1%funcValue,  ptr2%funcValue
                 allocate(nptr2)
                 allocate(nptr2%vertex(self%nDOF))
                 nptr2%funcValue = ptr%funcValue
@@ -254,7 +243,6 @@ module m_optimizers
               ptr2 => ptr1%next
             enddo
           endif
-          !write(*,*) ptr%funcValue, head%funcValue
         endif
       enddo
 
@@ -286,39 +274,8 @@ module m_optimizers
 
       nullify(head)
       nullify(tail)
-      !deallocate(head)
-      !deallocate(tail)
-      
        
     end subroutine
-
-    !subroutine orderSimplex(self, simplex, fSimplex) 
-    !  implicit none
-    !  class(nedler_mead) :: self
-    !  real(kind=8), dimension(:,:), intent(inout) :: simplex
-    !  real(kind=8), dimension(:), intent(inout) :: fSimplex
-    !  integer :: i, ilo, inhi, ihi
-    !  
-    !  ilo = 1
-    !  if (fSimplex(1) > fSimplex(2)) then
-    !    ihi = 1
-    !    inhi = 2
-    !  else
-    !    ihi = 2
-    !    inhi = 1
-    !  endif
-
-    !  do i=1,(self%nDOF+1)
-    !    if (fSimplex(i) < fSimplex(ilo)) ilo = i
-    !    if (fSimplex(i) > fSimplex(ihi)) then
-    !      inhi = ihi
-    !      ihi = i
-    !    elseif (fSimplex(i) > fSimplex(inhi)) then
-    !      if (i /= inhi) inhi = i
-    !    endif
-    !  enddo
-    !  write(*,*) ilo, inhi, ihi
-    !end subroutine orderSimplex
 
     subroutine propagateSimplex(self, stepType, simplex, fSimplex)
       implicit none
@@ -338,22 +295,11 @@ module m_optimizers
 
       cpSimplex = simplex
       cpFSimplex = fSimplex
-      !write(*,*) 'Before ordering'
-      !do i=1,self%nDOF
-      !  write(*,*) simplex(i,:) 
-      !enddo
-      !write(*,*) fSimplex(:) 
 
       call self%orderSimplex(cpSimplex, cpFSimplex)
 
       simplex = cpSimplex
       fSimplex = cpFSimplex
-
-      !write(*,*) 'After ordering'
-      !do i=1,self%nDOF
-      !  write(*,'(4f8.3)') simplex(i,:) 
-      !enddo
-      !write(*,'(4f8.3)') fSimplex(:) 
 
       shrink = .false.
       ! calculate simplex centroid
@@ -365,10 +311,7 @@ module m_optimizers
 
       ! reflect worst vertex about centroid  
       xr = c + self%alpha * (c - simplex(:,self%nDOF+1)) 
-      !write(*,*) "success"
-!      fr = self%pfunc(self%nDOF,xr) 
       fr = self%ufunc%calc(self%nDOF,xr) 
-      !write(*,*) fr
       ! check if reflected point xr is in betweeen second
       ! worst and best vertices in simplex 
       if ((fSimplex(1) <= fr) .and.  &
@@ -381,7 +324,6 @@ module m_optimizers
         ! expand simplex
         allocate(xe(self%nDOF))
         xe = c + self%gama * (xr - c)
-!        fe = self%pfunc(self%nDOF,xe)
         fe = self%ufunc%calc(self%nDOF,xe)
         ! if expanded point xe better than reflected one
         if (fe < fr) then
@@ -401,7 +343,6 @@ module m_optimizers
           ! contract simplex
           allocate(xc(self%nDOF))
           xc = c + self%beta * (xr - c)  
-!          fc = self%pfunc(self%nDOF,xc)
           fc = self%ufunc%calc(self%nDOF,xc)
           if (fc <= fr) then
             simplex(:,self%nDOF+1) = xc
@@ -414,7 +355,6 @@ module m_optimizers
         ! check if it is worse than the worst
         elseif (fr >= fSimplex(self%nDOF+1)) then 
           xc = c + self%beta * (xr - c) 
-!          fc = self%pfunc(self%nDOF,xc)
           fc = self%ufunc%calc(self%nDOF,xc)
           if (fc < fr) then
             simplex(:,self%nDOF+1) = xc
@@ -430,17 +370,11 @@ module m_optimizers
         do i=2,(self%nDOF+1)
           simplex(:,i) = (simplex(:,1) + self%delta &
                           * (simplex(:,i) - simplex(:,1)))
-!          fSimplex(i) = self%pfunc(self%nDOF,simplex(:,i))
           fSimplex(i) = self%ufunc%calc(self%nDOF,simplex(:,i))
         enddo
         write(steptype,*) 'Shrink'
       endif
 
-      !write(*,*) 'After propagation step'
-      !do i=1,self%nDOF
-      !  write(*,'(4f8.3)') simplex(i,:) 
-      !enddo
-      !write(*,'(4f8.3)') fSimplex(:) 
       deallocate(cpSimplex, cpFSimplex, c, xr)
       
     end subroutine propagateSimplex
@@ -472,11 +406,6 @@ module m_optimizers
         call self%propagateSimplex(stepType, simplex, fSimplex)
         maxXdev = 0.d0
         maxFdev = 0.d0
-        !xabs = 0.d0
-        !do k=1,self%nDOF 
-        !  xabs = xabs + simplex(k,1)**2 
-        !enddo
-        !xabs = dsqrt(xabs)
         do j=2,(self%nDOF+1)
           tmpXdev = 0.d0  
           do k=1,self%nDOF
@@ -489,10 +418,6 @@ module m_optimizers
           if (tmpXdev > maxXdev) maxXdev = tmpXdev
         enddo 
         write(11,200) i, fSimplex(1), maxFdev, maxXdev, stepType
-        !write(*,*) i
-        !write(*,'(8A)') stepType
-        !write(*,*) maxFdev, maxXdev
-        !write(*,*) self%ftol, self%xtol
         if ((maxFdev < self%ftol) .and. &
             (maxXdev < self%xtol))  then
           open(12, file='final.out', action='write', &
