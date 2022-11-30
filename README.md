@@ -1,3 +1,4 @@
-# Optimwidths
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.7382685.svg)](https://doi.org/10.5281/zenodo.7382685)
 
-**A script for calculating the Gaussian width parameter of AIMS**
+## What is optimwidths
+
