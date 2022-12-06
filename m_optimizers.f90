@@ -201,7 +201,7 @@ module m_optimizers
       do i=1,(self%nDOF+1)
         ptr%funcValue = fSimplex(i) 
         ptr%vertex = simplex(:,i)
-        if (not(associated(head))) then
+        if (.not. associated(head)) then
           allocate(head)
           allocate(head%vertex(self%nDOF))
           tail => head
@@ -256,7 +256,7 @@ module m_optimizers
         simplex(:,i) = ptr%vertex
         deallocate(ptr%vertex)
         ptr => ptr%next
-        if (not(associated(ptr))) exit
+        if (.not. associated(ptr)) exit
         i = i + 1
       enddo
 
@@ -266,7 +266,7 @@ module m_optimizers
       do 
         deallocate(current)
         nullify(current)
-        if(not(associated(next))) exit
+        if(.not. associated(next)) exit
         current => next
         next => current%next
         i = i + 1

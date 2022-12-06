@@ -217,7 +217,7 @@ module m_read
           inllist = .false.
           ptr%atomName = atomNames(i)
           ptr%atomIndex = ind
-          if (not(associated(head))) then
+          if (.not. associated(head)) then
             allocate(head)
             tail => head
             nullify(ptr%atomNext)
@@ -232,9 +232,9 @@ module m_read
                 exit
               endif
               ptr1 => ptr1%atomNext
-              if (not(associated(ptr1))) exit
+              if (.not. associated(ptr1)) exit
             enddo
-            if (not(inllist)) then
+            if (inllist .eqv. .false.) then
               allocate(tail%atomNext)
               tail => tail%atomNext
               nullify(tail%atomNext)
@@ -253,7 +253,7 @@ module m_read
         do 
           write(*,*) ptr%atomName, ptr%atomIndex
           ptr => ptr%atomNext
-          if(not(associated(ptr))) exit
+          if(.not. associated(ptr)) exit
         enddo
 
         do i=1,nrAtoms
@@ -263,7 +263,7 @@ module m_read
               atomTypes_a(i) = ptr%atomIndex
             endif
             ptr => ptr%atomNext
-            if(not(associated(ptr))) exit
+            if(.not. associated(ptr)) exit
           enddo
         enddo
 
@@ -272,7 +272,7 @@ module m_read
         do 
           deallocate(current)
           nullify(current)
-          if(not(associated(next))) exit
+          if(.not. associated(next)) exit
           current => next
           next => current%atomNext
         enddo
