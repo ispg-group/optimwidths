@@ -107,6 +107,7 @@ program optimwidths
     call nm%driveOptimisation()
 
     ! clean up
+    call nm%nm_cleanup()
     deallocate(W, M, A, U, masses, atomTypes_a, &
-&              pfunc, x0)
+&              pfunc, x0, nm)
 end program optimwidths

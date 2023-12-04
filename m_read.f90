@@ -4,7 +4,7 @@ module m_read
     type atomLlist 
       character(len=2) :: atomName
       integer :: atomIndex
-      type(atomLlist), pointer :: atomNext 
+      type(atomLlist), pointer :: atomNext => NULL()
     end type atomLlist
 
     contains
@@ -29,19 +29,49 @@ module m_read
     subroutine readFreqOut(nrAtoms, cDOF, nDOF, W, M, U, masses, &
                            prog, fName, atomTypes_a, ntype)
         implicit none
+        integer, intent(in)               :: nrAtoms, cDOF, nDOF
+        integer, intent(inout)            :: ntype, atomTypes_a(nrAtoms)
+        real(kind=8), intent(inout)       :: W(nDOF,nDOF), M(nDOF,nDOF), &
+                                             U(cDOF,nDOF), masses(nrAtoms)
+        character(len=128), intent(inout) :: fName
+        character(len=128), intent(in)    :: prog
+        real(kind=8), parameter :: freqConv = 4.5563352529119736d-6  
+        real(kind=8), parameter :: proton   = 1822.888515d0
+        integer :: i
+        W = 0.d0
+        M = 0.d0
+        U = 0.d0
+        select case(prog)
+            case('gaussian')
+                call readGaussian(nrAtoms, cDOF, nDOF, W, M, U, masses, &
+                                  fName, atomTypes_a, ntype)
+            case('terachem')
+                call readTerachem(nrAtoms, cDOF, nDOF, W, M, U, masses, &
+                                  fName, atomTypes_a, ntype)
+        endselect
+        do i=1,nDOF
+            M(i,i) = M(i,i) * proton 
+            W(i,i) = W(i,i) * freqConv 
+        enddo 
+        do i=1,nrAtoms
+            masses(i) = masses(i) * proton
+        enddo
+    end subroutine readFreqOut
+
+    subroutine readGaussian(nrAtoms, cDOF, nDOF, W, M, U, masses, &
+                            fName, atomTypes_a, ntype) 
+        implicit none
         integer, intent(in)             :: nrAtoms, cDOF, nDOF
         integer, intent(inout)          :: ntype, atomTypes_a(nrAtoms)
         real(kind=8), intent(inout)     :: W(nDOF,nDOF), M(nDOF,nDOF), &
                                            U(cDOF,nDOF), masses(nrAtoms)
-        character(len=128), intent(in)  :: prog, fName
+        character(len=128), intent(in)  :: fName
         character(len=256)              :: line
         real(kind=8), allocatable       :: atomCoords(:,:)
         integer, allocatable            :: nrMasses(:) 
         character(len=128), allocatable :: atomNames(:)
         character(len=20), allocatable  ::  tempCLine(:)
         real(kind=8), allocatable :: tempRLine(:) 
-        real(kind=8), parameter :: freqConv = 4.5563352529119736d-6  
-        real(kind=8), parameter :: proton   = 1822.888515d0
         logical :: rMasses, rAtomNames, rAtomCoords, rNormalModes 
         integer :: ioerr, ind, lineNr, i, j, ismass, ifreq, irmass, &
                    inmode, jnmode, itmp, jtmp, tmpNrAtoms, nMass,   &
@@ -73,131 +103,149 @@ module m_read
         irmass     = 1
         jnmode     = 0
         inmode     = 1
-        W = 0.d0
-        M = 0.d0
-        U = 0.d0
-        select case(prog)
-        case('gaussian')
-          open(unit=11, file=fName, status='old', action='read', &
-               iostat=ioerr) 
-          if (ioerr == 0) then 
-            do 
-              read(11, '(A)', iostat=ioerr) line
-              if (ioerr /= 0) exit
-              ind = index(trim(line), 'Symbolic Z-matrix')  
-              if (ind /= 0) then 
-                rAtomNames = .true. 
-                lineNr     = lineNr + 1
-                cycle
-              endif
-              
-              if (rAtomNames .and. (lineNr > 1)) then
-                read(line, '(x,a2,19x,3f9.5)') atomNames(lineNr-1), &
-                                               atomCoords(lineNr-1,:)
-                atomCoords = 0.d0
-                lineNr     = lineNr + 1
-                if (lineNr > (nrAtoms + 1)) then
-                    lineNr     = 0
-                    rAtomNames = .false. 
-                    call fillAtomTypes(nrAtoms,ntype,atomTypes_a,&
-&                                      atomNames)
-                endif 
-              elseif (rAtomNames .and. (lineNr == 1)) then
-                lineNr = lineNr + 1
-              endif
+        open(unit=11, file=fName, status='old', action='read', &
+             iostat=ioerr) 
+        if (ioerr /= 0) stop 
+        do 
+          read(11, '(A)', iostat=ioerr) line
+          if (ioerr /= 0) exit
+          ind = index(trim(line), 'Symbolic Z-matrix')  
+          if (ind /= 0) then 
+            rAtomNames = .true. 
+            lineNr     = lineNr + 1
+            cycle
+          endif
+          
+          if (rAtomNames .and. (lineNr > 1)) then
+            read(line, '(x,a2,19x,3f9.5)') atomNames(lineNr-1), &
+                                           atomCoords(lineNr-1,:)
+            atomCoords = 0.d0
+            lineNr     = lineNr + 1
+            if (lineNr > (nrAtoms + 1)) then
+                lineNr     = 0
+                rAtomNames = .false. 
+                call fillAtomTypes(nrAtoms,ntype,atomTypes_a,&
+&                                  atomNames)
+            endif 
+          elseif (rAtomNames .and. (lineNr == 1)) then
+            lineNr = lineNr + 1
+          endif
 
-              ind = index(trim(line), 'AtmWgt=')
-              if (ind /= 0) then
-                if (ismass < nMass) allocate(tempCLine(1),tempRLine(10))
-                if (ismass == nMass) allocate(tempCLine(1), &
-                                             tempRLine(nrMasses(ismass)))
-                if (ismass > nMass) cycle
-                read(line,*) tempCLine(:), tempRLine(:)
-                if (ismass < nMass) then
-                do i=1,10
-                  masses(imass) = tempRLine(i)*proton
-                  !write(*,*) masses(imass)
-                  imass = imass + 1
-                enddo
-                elseif (ismass == nMass) then
-                do i=1,nrMasses(ismass)
-                  masses(imass) = tempRLine(i)*proton
-                  !write(*,*) masses(imass)
-                  imass = imass + 1
-                enddo
-                endif
-                ismass = ismass + 1
-                deallocate(tempCLine, tempRLine)
-              endif
+          ind = index(trim(line), 'AtmWgt=')
+          if (ind /= 0) then
+            if (ismass < nMass) allocate(tempCLine(1),tempRLine(10))
+            if (ismass == nMass) allocate(tempCLine(1), &
+                                         tempRLine(nrMasses(ismass)))
+            if (ismass > nMass) cycle
+            read(line,*) tempCLine(:), tempRLine(:)
+            if (ismass < nMass) then
+            do i=1,10
+!                 masses(imass) = tempRLine(i)*proton
+              masses(imass) = tempRLine(i)
+              !write(*,*) masses(imass)
+              imass = imass + 1
+            enddo
+            elseif (ismass == nMass) then
+            do i=1,nrMasses(ismass)
+!                 masses(imass) = tempRLine(i)*proton
+              masses(imass) = tempRLine(i)
+              !write(*,*) masses(imass)
+              imass = imass + 1
+            enddo
+            endif
+            ismass = ismass + 1
+            deallocate(tempCLine, tempRLine)
+          endif
 
-              ind = index(trim(line), 'Standard orientation:')  
-              if (ind /= 0) then 
-                rAtomCoords = .true. 
-                lineNr      = lineNr + 1
-                cycle
-              endif
+          ind = index(trim(line), 'Standard orientation:')  
+          if (ind /= 0) then 
+            rAtomCoords = .true. 
+            lineNr      = lineNr + 1
+            cycle
+          endif
 
-              if (rAtomCoords .and. (lineNr > 4)) then
-                allocate(tempRLine(6))
-                read(line, *) tempRLine 
-                atomCoords(lineNr-4,:) = tempRLine(4:)
-                deallocate(tempRLine)
-                lineNr = lineNr + 1
-                if (lineNr > (nrAtoms + 4)) then
-                    lineNr      = 0
-                    rAtomCoords = .false. 
-                endif 
-              elseif (rAtomCoords .and. (lineNr <= 4)) then
-                lineNr = lineNr + 1
-              endif
+          if (rAtomCoords .and. (lineNr > 4)) then
+            allocate(tempRLine(6))
+            read(line, *) tempRLine 
+            atomCoords(lineNr-4,:) = tempRLine(4:)
+            deallocate(tempRLine)
+            lineNr = lineNr + 1
+            if (lineNr > (nrAtoms + 4)) then
+                lineNr      = 0
+                rAtomCoords = .false. 
+            endif 
+          elseif (rAtomCoords .and. (lineNr <= 4)) then
+            lineNr = lineNr + 1
+          endif
 
-              ind = index(trim(line), 'Frequencies')  
-              if (ind /= 0) then
-                rNormalModes = .true.
-                lineNr = lineNr + 1 
-                allocate(tempCLine(2),tempRLine(3))
-                read(line,*) tempCLine(:), tempRLine(:) 
-                do i=1,3
-                    W(ifreq,ifreq) = tempRLine(i)*freqConv
-                    ifreq = ifreq + 1
-                enddo
-                deallocate(tempCLine,tempRLine)
-                cycle
-              endif
+          ind = index(trim(line), 'Frequencies')  
+          if (ind /= 0) then
+            rNormalModes = .true.
+            lineNr = lineNr + 1 
+            allocate(tempCLine(2),tempRLine(3))
+            read(line,*) tempCLine(:), tempRLine(:) 
+            do i=1,3
+!                  W(ifreq,ifreq) = tempRLine(i)*freqConv
+                W(ifreq,ifreq) = tempRLine(i)
+                ifreq = ifreq + 1
+            enddo
+            deallocate(tempCLine,tempRLine)
+            cycle
+          endif
 
-              if (rNormalModes .and. (lineNr == 1)) then
-                allocate(tempCLine(3),tempRLine(3))
-                read(line,*) tempCLine(:), tempRLine(:) 
-                do i=1,3
-                    M(irmass,irmass) = tempRLine(i)*proton
-                    irmass = irmass + 1
-                enddo
-                deallocate(tempCLine,tempRLine)
-                lineNr = lineNr + 1
-              elseif (rNormalModes .and. (lineNr <= 4)) then
-                lineNr = lineNr + 1
-              elseif (rNormalModes .and. (lineNr > 4)) then
-                lineNr = lineNr + 1
-                allocate(tempRLine(2))
-                read(line,*) tempRLine(:), &
-                             U(inmode:inmode+2,jnmode+1), &
-                             U(inmode:inmode+2,jnmode+2), &
-                             U(inmode:inmode+2,jnmode+3)
-                inmode = inmode + 3
-                deallocate(tempRLine)
-                if (lineNr > (nrAtoms + 4)) then
-                    jnmode = jnmode + 3
-                    inmode = 1
-                    lineNr = 0
-                    rNormalModes = .false. 
-                endif 
-              endif
-            enddo 
-          endif 
-          close(11)
-        endselect
-        deallocate(atomCoords, atomNames)
-    end subroutine readFreqOut
+          if (rNormalModes .and. (lineNr == 1)) then
+            allocate(tempCLine(3),tempRLine(3))
+            read(line,*) tempCLine(:), tempRLine(:) 
+            do i=1,3
+!                  M(irmass,irmass) = tempRLine(i)*proton
+                M(irmass,irmass) = tempRLine(i)
+                irmass = irmass + 1
+            enddo
+            deallocate(tempCLine,tempRLine)
+            lineNr = lineNr + 1
+          elseif (rNormalModes .and. (lineNr <= 4)) then
+            lineNr = lineNr + 1
+          elseif (rNormalModes .and. (lineNr > 4)) then
+            lineNr = lineNr + 1
+            allocate(tempRLine(2))
+            read(line,*) tempRLine(:), &
+                         U(inmode:inmode+2,jnmode+1), &
+                         U(inmode:inmode+2,jnmode+2), &
+                         U(inmode:inmode+2,jnmode+3)
+            inmode = inmode + 3
+            deallocate(tempRLine)
+            if (lineNr > (nrAtoms + 4)) then
+                jnmode = jnmode + 3
+                inmode = 1
+                lineNr = 0
+                rNormalModes = .false. 
+            endif 
+          endif
+        enddo 
+        close(11)
+        deallocate(atomCoords, atomNames, nrMasses)
+    end subroutine readGaussian
+
+    subroutine readTerachem(nrAtoms, cDOF, nDOF, W, M, U, masses, &
+                            fName, atomTypes_a, ntype)
+        implicit none
+        integer, intent(in)             :: nrAtoms, cDOF, nDOF
+        integer, intent(inout)          :: ntype, atomTypes_a(nrAtoms)
+        real(kind=8), intent(inout)     :: W(nDOF,nDOF), M(nDOF,nDOF), &
+                                           U(cDOF,nDOF), masses(nrAtoms)
+        character(len=128), intent(in)  :: fName
+        character(len=256)              :: line
+        real(kind=8), allocatable       :: atomCoords(:,:)
+        integer, allocatable            :: nrMasses(:) 
+        character(len=128), allocatable :: atomNames(:)
+        character(len=20), allocatable  ::  tempCLine(:)
+        real(kind=8), allocatable :: tempRLine(:) 
+        logical :: rMasses, rAtomNames, rAtomCoords, rNormalModes 
+        integer :: ioerr, ind, lineNr, i, j, ismass, ifreq, irmass, &
+                   inmode, jnmode, itmp, jtmp, tmpNrAtoms, nMass,   &
+                   imass
+
+    end subroutine readTerachem
 
     subroutine fillAtomTypes(nrAtoms, ind,  atomTypes_a, atomNames) 
         implicit none
@@ -206,8 +254,8 @@ module m_read
         character(len=128), intent(in) :: atomNames(nrAtoms)
         integer, intent(inout) :: atomTypes_a(nrAtoms)
         type(atomLlist), pointer :: head => NULL(), tail => NULL(), &
-                                   ptr => NULL(), ptr1 => NULL(),   &
-                                   next => NULL(), current => NULL() 
+                                    ptr => NULL(), ptr1 => NULL(),   &
+                                    next => NULL(), current => NULL() 
         integer :: i
         logical :: inllist
 

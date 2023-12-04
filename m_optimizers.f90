@@ -24,6 +24,8 @@ module m_optimizers
     contains
       ! init method
       procedure, public  :: nm_init             
+      ! cleanup method
+      procedure, public  :: nm_cleanup             
       ! driver 
       procedure, public  :: driveOptimisation   
       ! method to calculate function value for each vertex  
@@ -121,6 +123,12 @@ module m_optimizers
       self%ufunc => ufunc 
     end subroutine nm_init
 
+    subroutine nm_cleanup(self)
+      implicit none
+      class(nedler_mead) :: self
+      deallocate(self%x0)
+      nullify(self%ufunc)
+    end subroutine nm_cleanup
 
     subroutine simplexFunc(self, simplex, fSimplex)
     ! 
@@ -185,7 +193,7 @@ module m_optimizers
       type :: llist 
         real(kind=8) :: funcValue
         real(kind=8), allocatable :: vertex(:)
-        type(llist), pointer :: next 
+        type(llist), pointer :: next => NULL() 
       end type llist
       type(llist), pointer :: tail => NULL(), head => NULL(), &
                               ptr => NULL(), ptr1 => NULL(), &
