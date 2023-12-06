@@ -76,7 +76,7 @@ module m_read
         real(kind=8), allocatable :: tempRLine(:) 
         logical :: rMasses, rAtomNames, rAtomCoords, rNormalModes 
         integer :: ioerr, ind, lineNr, i, j, ismass, ifreq, irmass, &
-                   inmode, jnmode, itmp, jtmp, tmpNrAtoms, nMass,   &
+                   inmode, jnmode, tmpNrAtoms, nMass,   &
                    imass
                    
 
@@ -142,16 +142,12 @@ module m_read
             read(line,*) tempCLine(:), tempRLine(:)
             if (ismass < nMass) then
             do i=1,10
-!                 masses(imass) = tempRLine(i)*proton
               masses(imass) = tempRLine(i)
-              !write(*,*) masses(imass)
               imass = imass + 1
             enddo
             elseif (ismass == nMass) then
             do i=1,nrMasses(ismass)
-!                 masses(imass) = tempRLine(i)*proton
               masses(imass) = tempRLine(i)
-              !write(*,*) masses(imass)
               imass = imass + 1
             enddo
             endif
@@ -187,7 +183,6 @@ module m_read
             allocate(tempCLine(2),tempRLine(3))
             read(line,*) tempCLine(:), tempRLine(:) 
             do i=1,3
-!                  W(ifreq,ifreq) = tempRLine(i)*freqConv
                 W(ifreq,ifreq) = tempRLine(i)
                 ifreq = ifreq + 1
             enddo
@@ -199,7 +194,6 @@ module m_read
             allocate(tempCLine(3),tempRLine(3))
             read(line,*) tempCLine(:), tempRLine(:) 
             do i=1,3
-!                  M(irmass,irmass) = tempRLine(i)*proton
                 M(irmass,irmass) = tempRLine(i)
                 irmass = irmass + 1
             enddo
@@ -245,10 +239,9 @@ module m_read
         integer, allocatable :: freqInds(:)   
         character(len=128) :: geomFName, freqFName 
         logical :: rAtomNames, rNormalModes, rFrequencies
-        integer :: ioerr, ind, lineNr, i, j, k, ifreq,  &
-                   inmode, jnmode, itmp, jtmp, freqPos, &
-                   nrExcess, nrQuart, iQuart, atomNr,   &
-                   atomLineNr 
+        integer :: ioerr, ind, lineNr, i, j, k, ifreq, &
+                   inmode, jnmode, freqPos, nrExcess,  &
+                   nrQuart, iQuart, atomNr, atomLineNr 
 
         allocate(atomCoords(nrAtoms,3), atomNames(nrAtoms))
         rAtomNames = .false.
@@ -348,9 +341,6 @@ module m_read
                 do i=1,size(freqInds)
                     jnmode = freqInds(i) + 1
                     U(inmode,jnmode) = tempRLine(i)  
-                !    write(*,*) atomNr, freqInds(i), atomLineNr 
-                !    write(*,*) inmode, jnmode
-                !    write(*,*) U(inmode,jnmode)
                 enddo
                 deallocate(tempRLine)
                 if (atomLineNr == 3) then 
@@ -370,7 +360,6 @@ module m_read
             j=i/3+1
             tempMasses(i+1,i+1) = masses(j) 
         enddo
-        ! U(cDOF,nDOF)
         do i = 1,cDOF 
           k = (i-1)/3 + 1
           do j = 1,nDOF
