@@ -88,7 +88,7 @@ module m_func
             enddo
           enddo
         endif
-        
+
         mat1 = matmul(transpose(self%U),matmul(A,self%U)) 
         mat2 = matmul(self%W,self%M)
         mat3 = mat2/2.d0 + mat1

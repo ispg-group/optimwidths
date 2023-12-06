@@ -35,6 +35,7 @@ module m_read
                                              U(cDOF,nDOF), masses(nrAtoms)
         character(len=128), intent(inout) :: fName
         character(len=128), intent(in)    :: prog
+        ! (10 * h * c / lambda)/Eh  
         real(kind=8), parameter :: freqConv = 4.5563352529119736d-6  
         real(kind=8), parameter :: proton   = 1822.888515d0
         integer :: i
@@ -56,6 +57,7 @@ module m_read
         do i=1,nrAtoms
             masses(i) = masses(i) * proton
         enddo
+
     end subroutine readFreqOut
 
     subroutine readGaussian(nrAtoms, cDOF, nDOF, W, M, U, masses, &
@@ -236,14 +238,151 @@ module m_read
         character(len=128), intent(in)  :: fName
         character(len=256)              :: line
         real(kind=8), allocatable       :: atomCoords(:,:)
-        integer, allocatable            :: nrMasses(:) 
         character(len=128), allocatable :: atomNames(:)
-        character(len=20), allocatable  ::  tempCLine(:)
+        character(len=20), allocatable  :: tempCLine(:)
         real(kind=8), allocatable :: tempRLine(:) 
-        logical :: rMasses, rAtomNames, rAtomCoords, rNormalModes 
-        integer :: ioerr, ind, lineNr, i, j, ismass, ifreq, irmass, &
-                   inmode, jnmode, itmp, jtmp, tmpNrAtoms, nMass,   &
-                   imass
+        real(kind=8), allocatable :: tempMasses(:,:) 
+        integer, allocatable :: freqInds(:)   
+        character(len=128) :: geomFName, freqFName 
+        logical :: rAtomNames, rNormalModes, rFrequencies
+        integer :: ioerr, ind, lineNr, i, j, k, ifreq,  &
+                   inmode, jnmode, itmp, jtmp, freqPos, &
+                   nrExcess, nrQuart, iQuart, atomNr,   &
+                   atomLineNr 
+
+        allocate(atomCoords(nrAtoms,3), atomNames(nrAtoms))
+        rAtomNames = .false.
+        lineNr     = 0
+        read(fName,*) geomFName, freqFName  
+        open(unit=12, file=geomFName, status='old', action='read', &
+             iostat=ioerr) 
+        if (ioerr /= 0) stop 
+        do 
+            read(12, '(A)', iostat=ioerr) line
+            if (ioerr /= 0) exit 
+            ind = index(trim(line), 'Type')  
+            if (ind /= 0) then 
+                rAtomNames = .true. 
+                lineNr     = lineNr + 1
+                cycle
+            endif
+
+            if (rAtomNames) then   
+                read(line,*) &
+                             atomNames(lineNr),    &
+                             atomCoords(lineNr,:), &
+                             masses(lineNr)
+                lineNr = lineNr + 1
+                if (lineNr > nrAtoms) then 
+                    lineNr = 0
+                    rAtomNames = .false.
+                    exit
+                endif
+            endif
+        enddo
+        close(12)
+        call fillAtomTypes(nrAtoms,ntype,atomTypes_a,&
+&                          atomNames)
+        deallocate(atomCoords, atomNames)
+
+        rNormalModes = .false.
+        rFrequencies = .false.
+        lineNr       = 0
+        freqPos = 4 
+        nrQuart = nDOF/4
+        nrExcess = nDOF - 4*nrQuart 
+        iQuart = 0
+        atomLineNr = 0 
+        open(unit=12, file=freqFName, status='old', action='read', &
+             iostat=ioerr) 
+        if (ioerr /= 0) stop 
+        allocate(freqInds(1))
+        freqInds = 0
+        do 
+            lineNr = lineNr + 1
+            read(12, '(A)', iostat=ioerr) line
+            if (ioerr /= 0) exit 
+
+            if (lineNr == freqPos) then
+                deallocate(freqInds)
+                iQuart = iQuart + 1
+                if (iQuart > nrQuart) then 
+                    allocate(freqInds(nrExcess))
+                else
+                    allocate(freqInds(4))
+                endif 
+                read(line, *) freqInds(:) 
+                rFrequencies = .true.
+                freqPos = freqPos + (cDOF + 4)
+                cycle
+            endif
+
+            if(rFrequencies) then
+                allocate(tempRLine(size(freqInds)))
+                read(line, *) tempRLine(:) 
+                do i=1,size(freqInds)
+                    ifreq = freqInds(i) + 1
+                    W(ifreq, ifreq) = tempRLine(i)
+                enddo 
+                rFrequencies = .false.
+                deallocate(tempRLine)
+            endif
+
+            ind = index(trim(line), '-------------------')
+            if (ind /= 0) then 
+                rNormalModes = .true. 
+                atomLineNr = 0 
+                cycle
+            endif
+
+            if (rNormalModes) then
+                atomLineNr = atomLineNr + 1
+                allocate(tempRLine(size(freqInds)))
+                if (atomLineNr == 1) then
+                    read(line,*) atomNr, tempRLine(:)
+                else
+                    read(line,*) tempRLine(:)
+                endif
+
+                inmode = 3*(atomNr - 1) + atomLineNr  
+                do i=1,size(freqInds)
+                    jnmode = freqInds(i) + 1
+                    U(inmode,jnmode) = tempRLine(i)  
+                !    write(*,*) atomNr, freqInds(i), atomLineNr 
+                !    write(*,*) inmode, jnmode
+                !    write(*,*) U(inmode,jnmode)
+                enddo
+                deallocate(tempRLine)
+                if (atomLineNr == 3) then 
+                    atomLineNr = 0
+                    if (atomNr == nrAtoms) then
+                        rNormalModes = .false.
+                        cycle
+                    endif
+                endif
+            endif
+        enddo
+        deallocate(freqInds)
+        close(12)
+
+        allocate(tempMasses(cDOF, cDOF))
+        do i=0,cDOF-1
+            j=i/3+1
+            tempMasses(i+1,i+1) = masses(j) 
+        enddo
+        ! U(cDOF,nDOF)
+        do i = 1,cDOF 
+          k = (i-1)/3 + 1
+          do j = 1,nDOF
+            ! needed because terachem prints non-massweighted nms  
+            U(i,j) = (U(i,j)*dsqrt(masses(k)))
+          enddo
+        enddo
+        do i=1,nDOF
+            ! reduced mass  
+            M(i,i) = dot_product(U(:,i),matmul(tempMasses,U(:,i)))
+        enddo
+        deallocate(tempMasses)
 
     end subroutine readTerachem
 

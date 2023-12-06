@@ -2,6 +2,8 @@ module m_optimizers
     use m_func
     implicit none
 
+    real(kind=8), parameter :: eps = 1.d-10
+
     type nedler_mead  
       private
       ! standard parameters of method 
@@ -217,7 +219,7 @@ module m_optimizers
           tail%funcValue = ptr%funcValue
           tail%vertex = ptr%vertex
         else
-          if (ptr%funcValue < head%funcValue) then  
+          if (ptr%funcValue  < head%funcValue ) then  
             ! add to front
             allocate(nptr)
             allocate(nptr%vertex(self%nDOF))
@@ -225,7 +227,7 @@ module m_optimizers
             nptr%vertex = ptr%vertex
             nptr%next => head
             head => nptr
-          elseif (ptr%funcValue >= tail%funcValue) then
+          elseif (ptr%funcValue  >= tail%funcValue) then
             ! add to back
             allocate(tail%next)
             allocate(tail%next%vertex(self%nDOF))
@@ -237,8 +239,8 @@ module m_optimizers
             ptr1 => head
             ptr2 => ptr1%next
             do
-              if ((ptr%funcValue >= ptr1%funcValue) .and. &
-                  (ptr%funcValue < ptr2%funcValue)) then
+              if ((ptr%funcValue  >= ptr1%funcValue) .and. &
+                  (ptr%funcValue  <  ptr2%funcValue)) then
                 allocate(nptr2)
                 allocate(nptr2%vertex(self%nDOF))
                 nptr2%funcValue = ptr%funcValue
@@ -443,6 +445,8 @@ module m_optimizers
           close(12)
           exit
         elseif (i > self%maxiter) then
+          open(12, file='final.out', action='write', &
+               status='REPLACE', iostat=ioerr)
           write(12,*) "Nedler-Mead stopped after ", &
                      i, " iterations, without converging."
           write(12,*) "Largest function deviation is"

@@ -77,7 +77,7 @@ program optimwidths
     call readFreqOut(nrAtoms, cartDOF, normDOF, W, M, U, &
                      masses, prog, fileName, atomTypes_a,&
                      nrType)
-    call convert2nm(nrAtoms, cartDOF, normDOF, U, M, masses)
+    call convert2nm(nrAtoms, cartDOF, normDOF, U, M, masses, prog)
     call pfunc%mf_init(nrAtoms, cartDOF, normDOF, W, M,  &
                        U, atomTypes_a, constrained)
 
